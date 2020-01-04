@@ -250,8 +250,10 @@ class Main {
     vector<string> tiposTurno;
     vector<pair<int, vector<Empleado>>> asignacionesFinales;
     int cantidadTurnos;
-    int cantidadStaff;
+    int totalAvailableEmployees;
     int totalToAsign;
+    int maximumAmountOfEmployeesToAssign;
+    map<string, vector<Empleado>> snapshots;
 
 public:
     string
@@ -288,7 +290,7 @@ public:
         vector<vector<Empleado>> asignaciones[cantidadTurnos * h];
 
         // Carguemos los empleados en un struct
-        cantidadStaff = staffs.size();
+        totalAvailableEmployees = staffs.size();
 
         for (const auto& staff : staffs) {
             Empleado emp = Empleado();
@@ -299,12 +301,12 @@ public:
             }
 
             emp.MaxT = maxT;
-            emp.MaxM = staff.second.second[1];
-            emp.minM = staff.second.second[2];
-            emp.MaxCT = staff.second.second[3];
-            emp.minCT = staff.second.second[4];
-            emp.MinCDL = staff.second.second[5];
-            emp.MaxFD = staff.second.second[6];
+            emp.MaxM = staff.second.second[0];
+            emp.minM = staff.second.second[1];
+            emp.MaxCT = staff.second.second[2];
+            emp.minCT = staff.second.second[3];
+            emp.MinCDL = staff.second.second[4];
+            emp.MaxFD = staff.second.second[5];
             emp.daysOff = dayOff[staff.first];
             emp.shiftOnRequests = shiftOnRequests[staff.first];
             emp.shiftOffRequests = shiftOffRequests[staff.first];
@@ -316,167 +318,178 @@ public:
             emp.hasCompletedCDL = false;
             empleados.push_back(emp);
         }
+        maximumAmountOfEmployeesToAssign = 0;
         for (const auto& dia : cover) {
             for (const auto& tipoTurno : dia.second) {
                 totalToAsign += tipoTurno.second[0];
+                if (maximumAmountOfEmployeesToAssign < tipoTurno.second[0]) {
+                    maximumAmountOfEmployeesToAssign = tipoTurno.second[0];
+                }
             }
         }
     }
-    void run(int turno, int iteration)
+    void run(int turno = 0, int iteration = 0, int turnoInicial = 0, int toAssignThisRun = 1, int initialEmployee = 0, int levelsToGoBack = 0)
     {
-
-        // Empezamos a iterar
-        // Iteramos sobre cada turno
-        //for (int turno = 0; turno < cantidadTurnos * h; turno++) {
-
         string tipoTurno = getTipoTurno(turno);
         int dia = getDiaTurno(turno);
         int duracionTurno = shifts[tipoTurno].first;
         int neededEmployees = cover[dia][tipoTurno][0];
 
         cout << "Turno: " << turno << " Dia: " << dia << " | Turno: " << tipoTurno << " | Duración: " << duracionTurno << " | Needs " << neededEmployees << " employees"
-             << " | Iteration " << iteration << endl;
+             << " | Iteration " << iteration << " | turnoInicial " << turnoInicial << " | initialEmployee " << initialEmployee << " | levelsToGoBack " << levelsToGoBack
+             << endl;
         // Partimos asignado empleados
         int assignedEmployees = 0;
         int currentEmployee = 0;
 
-        int toAssignThisRun = min(1, neededEmployees);
+        int _toAssignThisRun = min(toAssignThisRun, neededEmployees);
+        cout << " Assigning " << _toAssignThisRun << " of " << neededEmployees << endl;
 
-        // Asignamos entre min(1,neededEmployees) y neededEmployes [1 Nivel de arbol]
-        while (toAssignThisRun <= neededEmployees) {
-            cout << " Assigning " << toAssignThisRun << " of " << neededEmployees << endl;
+        // Vamos Asignado empleados hasta cumplir la cuota
+        while (initialEmployee < totalAvailableEmployees || _toAssignThisRun == 0) {
+            cout << "  STARTING_EMPLOYEE NUMERIC: " << initialEmployee << endl;
+            int testedEmployees = 0;
+            assignedEmployees = 0;
+            currentEmployee = initialEmployee;
+            bool sirve = true;
+            Empleado emp = empleados[currentEmployee];
+            // Vamos variando el empleado inicial
+            while (assignedEmployees < _toAssignThisRun) {
+                emp = empleados[currentEmployee];
 
-            // Vamos Asignado empleados hasta cumplir la cuota
-            int initialEmployee = 0;
-            while (initialEmployee < cantidadStaff && initialEmployee < toAssignThisRun) {
-                cout << "  STARTING_EMPLOYEE NUMERIC: " << initialEmployee << endl;
-                int testedEmployees = 0;
-                assignedEmployees = 0;
-                currentEmployee = initialEmployee;
-                // Vamos variando el empleado inicial
-                while (assignedEmployees < toAssignThisRun) {
+                cout << "   Testing employee: " << emp.id << endl;
+                // Verificamos si el empleado sirve para este turno
+                sirve = true;
 
-                    Empleado emp = empleados[currentEmployee];
-
-                    cout << "   Testing employee: " << emp.id << endl;
-
-                    // Verificamos si el empleado sirve para este turno
-                    bool sirve = true;
-
-                    // Minutos máximo de trabajo
-                    if (emp.currentM + duracionTurno > emp.MaxM) {
+                // Minutos máximo de trabajo
+                if (emp.currentM + duracionTurno > emp.MaxM) {
+                    cout << "    "
+                         << "[x] Minutos máximo de trabajo (" << emp.currentM << "+" << duracionTurno << "/"
+                         << emp.MaxM << ")" << endl;
+                    sirve = false;
+                }
+                // Cantidad de turnos de tipo T que puede hacer
+                if (emp.currentT[tipoTurno] + 1 > emp.MaxT[tipoTurno]) {
+                    cout << "    "
+                         << "[x] Cantidad de turnos de tipo T que puede hacer (" << emp.currentT[tipoTurno] << "/" << emp.MaxT[tipoTurno] << ")" << endl;
+                    sirve = false;
+                }
+                // Max turnos consecutivos
+                if (emp.lastWorkedShift + 1 == turno) {
+                    if (emp.MaxCT > emp.currentCT) {
                         cout << "    "
-                             << "[x] Minutos máximo de trabajo" << endl;
+                             << "[x] Max turnos consecutivos" << endl;
                         sirve = false;
                     }
-                    // Cantidad de turnos de tipo T que puede hacer
-                    if (emp.currentT[tipoTurno] + 1 > emp.MaxT[tipoTurno]) {
+                }
+                // Fines de Semana (recordar que lunes = 0)
+                if (dia % 5 == 0 || dia % 6 == 0) {
+                    if (emp.currentFD + 1 > emp.MaxFD) {
                         cout << "    "
-                             << "[x] Cantidad de turnos de tipo T que puede hacer (" << emp.currentT[tipoTurno] << "/" << emp.MaxT[tipoTurno] << ")" << endl;
+                             << "[x] Fines de Semana" << endl;
                         sirve = false;
                     }
-                    // Max turnos consecutivos
-                    if (emp.lastWorkedShift + 1 == turno) {
-                        if (emp.MaxCT > emp.currentCT) {
-                            cout << "    "
-                                 << "[x] Max turnos consecutivos" << endl;
-                            sirve = false;
-                        }
-                    }
-                    // Fines de Semana (recordar que lunes = 0)
-                    if (dia % 5 == 0 || dia % 6 == 0) {
-                        if (emp.currentFD + 1 > emp.MaxFD) {
-                            cout << "    "
-                                 << "[x] Fines de Semana" << endl;
-                            sirve = false;
-                        }
-                    }
+                }
 
-                    // Dias libres obligatorios
-                    if (find(emp.daysOff.begin(), emp.daysOff.end(), dia) != emp.daysOff.end()) {
+                // Dias libres obligatorios
+                if (find(emp.daysOff.begin(), emp.daysOff.end(), dia) != emp.daysOff.end()) {
+                    cout << "    "
+                         << "[x] Dias libres obligatorios" << endl;
+                    sirve = false;
+                }
+
+                // Continuación de turnos
+                if (getTipoTurno(emp.lastWorkedShift).compare("NO_SHIFT") != 0) {
+                    vector<string> latestShiftRestrictions = shifts[getTipoTurno(emp.lastWorkedShift)].second;
+                    if (find(latestShiftRestrictions.begin(), latestShiftRestrictions.end(), getTipoTurno(emp.lastWorkedShift)) != latestShiftRestrictions.end()) {
                         cout << "    "
-                             << "[x] Dias libres obligatorios" << endl;
+                             << "[x] Continuación de turnos" << endl;
                         sirve = false;
                     }
+                }
 
-                    // Continuación de turnos
-                    if (getTipoTurno(emp.lastWorkedShift).compare("NO_SHIFT") != 0) {
-                        vector<string> latestShiftRestrictions = shifts[getTipoTurno(emp.lastWorkedShift)].second;
-                        if (find(latestShiftRestrictions.begin(), latestShiftRestrictions.end(), getTipoTurno(emp.lastWorkedShift)) != latestShiftRestrictions.end()) {
-                            cout << "    "
-                                 << "[x] Continuación de turnos" << endl;
-                            sirve = false;
-                        }
-                    }
+                // El empleado sirve, actualicemos los datos, y calculemos F.O
 
-                    // El empleado sirve, actualicemos los datos, y calculemos F.O
-                    if (sirve) {
-                        int FOValue = 0;
+                testedEmployees += 1;
 
-                        // Actualizar datos del empleado
-                        emp.currentM += duracionTurno;
-                        emp.currentT[tipoTurno] += 1;
-                        emp.lastWorkedShift = turno;
-                        emp.currentFD += 1;
-                        empleados[currentEmployee] = emp;
+                if (sirve) {
+                    break;
+                } else {
 
-                        cout << "   Employee \"" << emp.id << "\" assigned to shift " << tipoTurno << " (Día " << dia << ")" << endl;
-
-                        // Guardar Asignación de turno
-                        if (asignacionesFinales.size() <= turno) {
-                            vector<Empleado> unique;
-                            unique.push_back(empleados[currentEmployee]);
-                            asignacionesFinales.push_back(make_pair(FOValue, unique));
-
+                    if (testedEmployees >= totalAvailableEmployees) {
+                        // Error al armar los turnos, deberiamos saltar
+                        cout << "BRANCH FAILED" << endl;
+                        if (initialEmployee + 1 < totalAvailableEmployees) {
+                            cout << "TRYING STARTING WITH EMPLOYEE NUMBER " << (initialEmployee + 1) << " THE SHIFT" << endl;
+                            run(turno - 1, iteration, turnoInicial, toAssignThisRun, (initialEmployee + 1));
+                        } else if (toAssignThisRun < maximumAmountOfEmployeesToAssign) {
+                            cout << "TRYING ASSIGNING " << (toAssignThisRun + 1) << " EMPLOYEES PER SHIFT ON START (IF REQUIRED)" << endl;
+                            run(turno - 1, iteration, turnoInicial, toAssignThisRun + 1, 0);
+                        } else if (turno - levelsToGoBack - 1 > 0) {
+                            run((turno - levelsToGoBack - 1), iteration, turnoInicial, 1, 0, (levelsToGoBack - 1));
                         } else {
-                            asignacionesFinales[turno].second.push_back(empleados[currentEmployee]);
+                            cout << "NO FEASSIBLE ASSIGNMENTS FOUND, MAYBE YOU SHOULD START CONSIDERING SOFT RESTRICTIONS" << endl;
                         }
-                        assignedEmployees += 1;
-
-                        // Asignamos siguiente turno
-                        if (assignedEmployees < totalToAsign) {
-                            if (turno + 1 == cantidadTurnos * h) {
-                                run(0, iteration + 1);
-                            } else {
-                                run(turno + 1, iteration);
-                            }
-                        } else {
-                            cout << "--- RAMA FINALIZADA, HORA DE SALTAR ---";
-                        }
-                    }
-                    if (currentEmployee + 1 == cantidadStaff) {
-                        currentEmployee = 0;
-                    } else {
-                        currentEmployee += 1;
-                    }
-
-                    testedEmployees += 1;
-                    // El loop corre hasta que probemos con los N staff, pero vamos variando el inicial
-                    if (testedEmployees == cantidadStaff) {
-                        cout << "---- FIN DE POSIBLES USUARIOS PARA ESTE TURNO -----" << endl;
                         break;
                     }
                 }
-                initialEmployee += 1;
-            }
 
-            toAssignThisRun
-                += 1;
-        }
-        // Condicion especial cuando no hay que asignar personas
-        if (neededEmployees == 0) {
-            if (assignedEmployees < totalToAsign) {
-                if (turno + 1 == cantidadTurnos * h) {
-                    run(0, iteration + 1);
+                // Para restablecer los indices si es que el empleado inicial no es 0
+                if (currentEmployee + 1 == totalAvailableEmployees) {
+                    currentEmployee = 0;
                 } else {
-                    run(turno + 1, iteration);
+                    currentEmployee += 1;
                 }
-            } else {
-                cout << "--- RAMA FINALIZADA, HORA DE SALTAR ---";
+            }
+            if (sirve) {
+                int FOValue = 0;
+
+                if (_toAssignThisRun != 0) {
+                    // Actualizar datos del empleado
+                    emp.currentM += duracionTurno;
+                    emp.currentT[tipoTurno] += 1;
+                    emp.lastWorkedShift = turno;
+                    emp.currentFD += 1;
+                    empleados[currentEmployee] = emp;
+                    assignedEmployees += 1;
+
+                    cout << "   Employee \"" << emp.id << "\" assigned to shift " << tipoTurno << " (Día " << dia << ")" << endl;
+                } else {
+                    cout << "No employee needed for this shift" << endl;
+                }
+
+                // Guardar Asignación de turno
+                if (asignacionesFinales.size() <= turno) {
+                    vector<Empleado> unique;
+                    if (toAssignThisRun != 0) {
+                        unique.push_back(empleados[currentEmployee]);
+                    }
+                    asignacionesFinales.push_back(make_pair(FOValue, unique));
+
+                } else {
+                    asignacionesFinales[turno].second.push_back(empleados[currentEmployee]);
+                }
+
+                // Buscamos siguiente turno
+                if (assignedEmployees < totalToAsign) {
+                    // Crear Snapshot para luego poder continuar desde aquí
+                    string idSnapshot = to_string(turnoInicial) + "-" + to_string(toAssignThisRun) + "-" + to_string(initialEmployee) + "-" + to_string(turno);
+                    snapshots[idSnapshot] = empleados;
+                    cout << "   "
+                         << "Making snapshot " << idSnapshot << endl;
+
+                    if (turno + 1 == cantidadTurnos * h) {
+                        run(0, iteration + 1, turnoInicial, toAssignThisRun, initialEmployee, levelsToGoBack);
+                    } else {
+                        run(turno + 1, iteration, turnoInicial, toAssignThisRun, initialEmployee, levelsToGoBack);
+                    }
+                } else {
+                    cout << "LLEGO AL FINAL DE LA RAMA SIN PROBLEMAS, GUARDAR EN ARCHIVO" << endl;
+                }
+                break;
             }
         }
     }
-    //}
 };
 
 int main(int argc, char const* argv[])
@@ -486,6 +499,6 @@ int main(int argc, char const* argv[])
 
     programa.parseInput();
     programa.buildStructures();
-    programa.run(0, 0);
+    programa.run();
     return 0;
 }
