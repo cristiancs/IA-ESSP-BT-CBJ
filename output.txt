@@ -1,0 +1,20 @@
+Turno: 0 Dia: 0 | Turno: D | Duración: 480 | Needs 1 employees
+ Assigning 1 of 1
+  STARTING_EMPLOYEE NUMERIC: 0
+   Testing employee: A
+   Employee "A" asigned to shift D (Día 0)
+  STARTING_EMPLOYEE NUMERIC: 1
+   Testing employee: B
+   Employee "B" asigned to shift D (Día 0)
+  STARTING_EMPLOYEE NUMERIC: 2
+   Testing employee: C
+    [x] Dias libres obligatorios
+   Testing employee: D
+    [x] Cantidad de turnos de tipo T que puede hacer (0/0)
+   Testing employee: A
+   Employee "A" asigned to shift D (Día 0)
+  STARTING_EMPLOYEE NUMERIC: 3
+   Testing employee: D
+    [x] Cantidad de turnos de tipo T que puede hacer (0/0)
+   Testing employee: A
+   Employee "A" asigned to shift D (Día 0)
