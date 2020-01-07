@@ -333,7 +333,7 @@ public:
     }
     bool isWeekend(int dia)
     {
-        return dia != 0 && (dia % 5 == 0 || dia % 6 == 0);
+        return dia != 0 && (dia % 7 == 5 || dia % 7 == 6);
     }
     bool checkIfWorks(Empleado emp, int turno)
     {
@@ -356,12 +356,10 @@ public:
             sirve = false;
         }
         // Max turnos consecutivos
-        if (emp.lastWorkedShift + 1 == turno) {
-            if (emp.MaxCT > emp.currentCT) {
-                cout << "  "
-                     << "[x] Max turnos consecutivos" << endl;
-                sirve = false;
-            }
+        if (emp.MaxCT < emp.currentCT + 1) {
+            cout << "  "
+                 << "[x] Max turnos consecutivos" << endl;
+            sirve = false;
         }
         // Fines de Semana (recordar que lunes = 0)
         if (isWeekend(dia)) {
@@ -448,7 +446,7 @@ public:
                     maxCT = currentCT;
                 }
                 currentCT = 0;
-                if (find(emp.daysOff.begin(), emp.daysOff.end(), dia) == emp.daysOff.end()) {
+                if (find(emp.daysOff.begin(), emp.daysOff.end(), i) == emp.daysOff.end()) {
                     currentCDL += 1;
                 }
             }
@@ -461,7 +459,7 @@ public:
         }
         if (maxCT < emp.minCT) {
             cout << "  "
-                 << "[x] Minimo de turnos consecutivos" << endl;
+                 << "[x] Minimo de turnos consecutivos (" << maxCT << "/" << emp.minCT << ")" << endl;
             return 3;
         }
         return -1;
@@ -469,8 +467,9 @@ public:
     void printCamino(Empleado emp)
     {
         int i = 0;
-        int spaces = cantidadTurnos;
         int cantidadTurnos = emp.assignedShifts.size();
+        int spaces = cantidadTurnos;
+
         int cantidadUnos = 0;
         for (int val : emp.assignedShifts) {
             cout << i << ":";
