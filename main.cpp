@@ -2,7 +2,7 @@
 
 using namespace std;
 
-// Split tipo python para leeer el input
+// Split tipo python para leer el input
 vector<string> customSplit(string& linea, char delimitador)
 {
     linea.erase(remove_if(linea.begin(), linea.end(), ::isspace), linea.end());
@@ -135,33 +135,63 @@ map<string, vector<int>> readDayOff()
     return resultado;
 }
 
-// Retorna un mapa cuyas llaves son los empleados y los valores son vectores de pares de la forma [ [TurnoID, [Día, Peso] ] ] (tuve que desordenar esto para almacenarlo fácilmente)
-map<string, vector<pair<string, pair<int, int>>>> readShiftOnRequests()
+// {empleado: {dia: {tipo_turno: penalizacion}}}
+map<string, map<int, map<string, int>>> readShiftOnRequests()
 {
     string linea;
-    map<string, vector<pair<string, pair<int, int>>>> resultado;
+    map<string, map<int, map<string, int>>> resultado;
     vector<string> data;
     string siguientePaso = "SECTION_SHIFT_OFF_REQUESTS";
-
+    string lastEmployee = "";
+    map<int, map<string, int>> toSave;
     while (getline(cin, linea) && linea.compare(siguientePaso) != 0) {
         data = customSplit(linea, ',');
-        resultado[data[0]].push_back(make_pair(data[2], make_pair(stoi(data[1]), stoi(data[3]))));
+        //A , 0 , E , 3
+        cout << data[0] << "|" << lastEmployee << endl;
+        if (lastEmployee.compare("") != 0 && lastEmployee.compare(data[0]) != 0) {
+            cout << "Changing employee" << endl;
+            resultado[lastEmployee]
+                = toSave;
+            toSave.empty();
+        }
+        if (toSave.find(stoi(data[1])) == toSave.end()) {
+            map<string, int> temp;
+            toSave[stoi(data[1])] = temp;
+        }
+        toSave[stoi(data[1])][data[2]] = stoi(data[3]);
+        lastEmployee = data[0];
     }
-
+    // for (const auto& d : resultado) {
+    //     cout << " " << d.first << endl;
+    //     for (const auto& e : resultado[d.first])
+    //         cout << "  " << e.first << endl;
+    // }
     return resultado;
 }
 
 // Retorna un mapa cuyas llaves son los empleados y los valores son vectores de pares de la forma [ [TurnoID, [Día, Peso] ] ] (tuve que desordenar esto para almacenarlo fácilmente)
-map<string, vector<pair<string, pair<int, int>>>> readShiftOffRequests()
+map<string, map<int, map<string, int>>> readShiftOffRequests()
 {
     string linea;
-    map<string, vector<pair<string, pair<int, int>>>> resultado;
+    map<string, map<int, map<string, int>>> resultado;
     vector<string> data;
     string siguientePaso = "SECTION_COVER";
-
+    string lastEmployee = "";
+    map<int, map<string, int>> toSave;
     while (getline(cin, linea) && linea.compare(siguientePaso) != 0) {
         data = customSplit(linea, ',');
-        resultado[data[0]].push_back(make_pair(data[2], make_pair(stoi(data[1]), stoi(data[3]))));
+        //A , 0 , E , 3
+        if (toSave.find(stoi(data[1])) == toSave.end()) {
+            map<string, int> temp;
+            toSave[stoi(data[1])] = temp;
+        }
+        if (lastEmployee.compare("") != 0 && lastEmployee.compare(data[0]) != 0) {
+            resultado[lastEmployee]
+                = toSave;
+            lastEmployee = data[0];
+            toSave.empty();
+        }
+        toSave[stoi(data[1])][data[2]] = stoi(data[3]);
     }
 
     return resultado;
@@ -225,8 +255,8 @@ typedef struct
     int MaxFD;
     string id;
     vector<int> daysOff;
-    vector<pair<string, pair<int, int>>> shiftOnRequests;
-    vector<pair<string, pair<int, int>>> shiftOffRequests;
+    map<int, map<string, int>> shiftOnRequests;
+    map<int, map<string, int>> shiftOffRequests;
 
     // Valores con la asignación actual
     map<string, int> currentT;
@@ -244,8 +274,8 @@ class Main {
     map<string, pair<int, vector<string>>> shifts;
     map<string, pair<vector<pair<string, int>>, vector<int>>> staffs;
     map<string, vector<int>> dayOff;
-    map<string, vector<pair<string, pair<int, int>>>> shiftOnRequests;
-    map<string, vector<pair<string, pair<int, int>>>> shiftOffRequests;
+    map<string, map<int, map<string, int>>> shiftOnRequests;
+    map<string, map<int, map<string, int>>> shiftOffRequests;
     map<int, map<string, vector<int>>> cover;
     vector<Empleado> empleados;
     vector<string> tiposTurno;
@@ -254,6 +284,9 @@ class Main {
     int totalAvailableEmployees;
     int totalToAsign;
     int maximumAmountOfEmployeesToAssign;
+    int lastEmployee;
+    int currentBestSolutionCost;
+    vector<int> currentBestSolutionPath;
     map<string, vector<Empleado>> snapshots;
 
 public:
@@ -283,6 +316,7 @@ public:
     }
     void buildStructures()
     {
+        lastEmployee = -1;
         // Vector con los tipos de turno
 
         for (pair<const string, pair<int, vector<string>>>& x : shifts) {
@@ -345,20 +379,20 @@ public:
         // Minutos máximo de trabajo
         if (emp.currentM + duracionTurno > emp.MaxM) {
             cout << "  "
-                 << "[x] Minutos máximo de trabajo (" << emp.currentM << "+" << duracionTurno << "/"
+                 << "[✖] Minutos máximo de trabajo (" << emp.currentM << "+" << duracionTurno << "/"
                  << emp.MaxM << ")" << endl;
             sirve = false;
         }
         // Cantidad de turnos de tipo T que puede hacer
         if (emp.currentT[tipoTurno] + 1 > emp.MaxT[tipoTurno]) {
             cout << "  "
-                 << "[x] Cantidad de turnos de tipo T que puede hacer (" << emp.currentT[tipoTurno] << "/" << emp.MaxT[tipoTurno] << ")" << endl;
+                 << "[✖] Cantidad de turnos de tipo T que puede hacer (" << emp.currentT[tipoTurno] << "/" << emp.MaxT[tipoTurno] << ")" << endl;
             sirve = false;
         }
         // Max turnos consecutivos
         if (emp.MaxCT < emp.currentCT + 1) {
             cout << "  "
-                 << "[x] Max turnos consecutivos" << endl;
+                 << "[✖] Max turnos consecutivos" << endl;
             sirve = false;
         }
         // Fines de Semana (recordar que lunes = 0)
@@ -366,7 +400,7 @@ public:
             if (!isWeekend(getDiaTurno(emp.lastWorkedShift))) {
                 if (emp.currentFD + 1 > emp.MaxFD) {
                     cout << "  "
-                         << "[x] Fines de Semana (" << emp.currentFD << "/" << emp.MaxFD << ")" << endl;
+                         << "[✖] Fines de Semana (" << emp.currentFD << "/" << emp.MaxFD << ")" << endl;
                     sirve = false;
                 }
             }
@@ -375,7 +409,7 @@ public:
         // Dias libres obligatorios
         if (find(emp.daysOff.begin(), emp.daysOff.end(), dia) != emp.daysOff.end()) {
             cout << "  "
-                 << "[x] Dias libres obligatorios" << endl;
+                 << "[✖] Dias libres obligatorios" << endl;
             sirve = false;
         }
 
@@ -384,12 +418,13 @@ public:
             vector<string> latestShiftRestrictions = shifts[getTipoTurno(emp.lastWorkedShift)].second;
             if (find(latestShiftRestrictions.begin(), latestShiftRestrictions.end(), getTipoTurno(emp.lastWorkedShift)) != latestShiftRestrictions.end()) {
                 cout << "  "
-                     << "[x] Continuación de turnos" << endl;
+                     << "[✖] Continuación de turnos" << endl;
                 sirve = false;
             }
         }
         if (sirve) {
-            cout << " Turno " << turno << " sirve" << endl;
+            cout << "  "
+                 << "[✔] " << turno << " sirve " << endl;
         }
         return sirve;
     }
@@ -426,7 +461,7 @@ public:
     {
         if (emp.currentM < emp.minM) {
             cout << "  "
-                 << "[x] Minimo de minutos trabajados (" << emp.currentM << "/" << emp.minM << ")" << endl;
+                 << "[✖] Minimo de minutos trabajados (" << emp.currentM << "/" << emp.minM << ")" << endl;
             return 1;
         }
         int maxCT = 0;
@@ -454,12 +489,12 @@ public:
         }
         if (maxCDL < emp.MinCDL) {
             cout << "  "
-                 << "[x] Minimo dias libres consecutivos" << endl;
+                 << "[✖] Minimo dias libres consecutivos" << endl;
             return 2;
         }
         if (maxCT < emp.minCT) {
             cout << "  "
-                 << "[x] Minimo de turnos consecutivos (" << maxCT << "/" << emp.minCT << ")" << endl;
+                 << "[✖] Minimo de turnos consecutivos (" << maxCT << "/" << emp.minCT << ")" << endl;
             return 3;
         }
         return -1;
@@ -485,6 +520,27 @@ public:
         }
         cout << "Cantidad de 1's: " << cantidadUnos << endl;
     }
+    void writeCamino(Empleado emp, ofstream& outfile)
+    {
+        int i = 0;
+        int cantidadTurnos = emp.assignedShifts.size();
+        int spaces = cantidadTurnos;
+
+        int cantidadUnos = 0;
+        for (int val : emp.assignedShifts) {
+            outfile << i << ":";
+            if (val == 1) {
+                outfile << string(spaces - to_string(i).length() - 1, ' ') << 1 << endl;
+                spaces -= 1;
+                cantidadUnos += 1;
+            } else {
+                outfile << string(spaces + 1 - to_string(i).length() - 1, ' ') << " 0" << endl;
+                spaces += 1;
+            }
+            i += 1;
+        }
+        outfile << "Cantidad de 1's: " << cantidadUnos << endl;
+    }
     int lastWorkingShift(Empleado emp)
     {
         auto result = find_if(emp.assignedShifts.rbegin(), emp.assignedShifts.rend(),
@@ -492,59 +548,106 @@ public:
         int lastOne = distance(result, emp.assignedShifts.rend()) - 1;
         return lastOne;
     }
-    void run(int empleado = 0, int initialTurn = 0)
+    int calcularCostoEmpleado(Empleado emp)
     {
-        cout << "Starting" << endl;
-        Empleado emp = empleados[empleado];
-        cout << "Testing employee: " << emp.id << endl;
-
-        resetToTurno(emp, empleado, initialTurn);
-        emp = empleados[empleado];
-
-        for (int turno = initialTurn; turno < cantidadTurnos * h; turno++) {
-
-            string tipoTurno = getTipoTurno(turno);
-            int dia = getDiaTurno(turno);
-            int duracionTurno = shifts[tipoTurno].first;
-            int neededEmployees = cover[dia][tipoTurno][0];
-            cout << " Testing turno: " << turno << endl;
-            bool isValidTurn = checkIfWorks(emp, turno);
-            if (isValidTurn && ((initialTurn != 0 && initialTurn != turno) || initialTurn == 0)) { // Es valido y no es el turno a cambiar
-                cout << "  Turno works, assigning employee to turno" << endl;
-                emp.currentM += duracionTurno;
-                emp.currentT[tipoTurno] += 1;
-
-                if (isWeekend(dia) && !isWeekend(emp.lastWorkedShift)) {
-                    emp.currentFD += 1;
+        int shift = 0;
+        int penalizacionEmpleado = 0;
+        for (int val : emp.assignedShifts) {
+            int dia = getDiaTurno(shift);
+            if (val == 1) {
+                //cout << "[shiftoffrequest] Looking for request on " << dia << endl;
+                if (emp.shiftOffRequests.find(dia) != emp.shiftOffRequests.end()) {
+                    //cout << "[shiftoffrequest] Found restrictions for this day" << endl;
+                    if (emp.shiftOffRequests[dia].find(getTipoTurno(shift)) != emp.shiftOffRequests[dia].end()) {
+                        // cout << "[shiftoffrequest] Found restrictions for this shift" << endl;
+                        penalizacionEmpleado += emp.shiftOffRequests[dia][getTipoTurno(shift)];
+                    }
                 }
-                emp.lastWorkedShift = turno;
-                emp.currentCT += 1;
-                emp.assignedShifts.push_back(1);
             } else {
-                emp.currentCT = 0;
-                emp.assignedShifts.push_back(0);
+                //cout << "[shiftOnRequests] Looking for request on " << dia << endl;
+                if (emp.shiftOnRequests.find(dia) != emp.shiftOnRequests.end()) {
+                    //cout << "[shiftOnRequests] Found restrictions for this day" << endl;
+                    if (emp.shiftOnRequests[dia].find(getTipoTurno(shift)) != emp.shiftOnRequests[dia].end()) {
+                        //cout << "[shiftOnRequests] Found restrictions for this shift" << endl;
+                        penalizacionEmpleado += emp.shiftOnRequests[dia][getTipoTurno(shift)];
+                    }
+                }
             }
+            shift += 1;
+        }
+        return penalizacionEmpleado;
+    }
+    void run(int empleado = 0, int turno = 0)
+    {
+
+        Empleado emp = empleados[empleado];
+        if (empleado != lastEmployee) {
+            cout << "Testing employee: " << emp.id << endl;
+            lastEmployee = empleado;
+        }
+
+        string tipoTurno = getTipoTurno(turno);
+        int dia = getDiaTurno(turno);
+        int duracionTurno = shifts[tipoTurno].first;
+        int neededEmployees = cover[dia][tipoTurno][0];
+        cout << " Testing turno: " << turno << endl;
+        bool isValidTurn = checkIfWorks(emp, turno);
+        if (isValidTurn) { // Es valido y no es el turno a cambiar
+            emp.currentM += duracionTurno;
+            emp.currentT[tipoTurno] += 1;
+
+            if (isWeekend(dia) && !isWeekend(emp.lastWorkedShift)) {
+                emp.currentFD += 1;
+            }
+            emp.lastWorkedShift = turno;
+            emp.currentCT += 1;
+            emp.assignedShifts.push_back(1);
+            empleados[empleado] = emp;
+            if (turno + 1 < cantidadTurnos * h) {
+                run(empleado, turno + 1);
+            }
+        }
+        emp.currentCT = 0;
+        if (isValidTurn) {
+
+            emp.assignedShifts.back() = 0;
+        } else {
+            emp.assignedShifts.push_back(0);
         }
         empleados[empleado] = emp;
-        cout << " Revisando si cumple  con los requisitos minimos" << endl;
-        printCamino(emp);
-        int resultado = checkFinalShifts(emp); // -1,1,2,3 = Valido,  Minimo de minutos trabajados, Minimo dias libres consecutivos, Minimo de turnos consecutivos
-        if (resultado == -1) {
-            cout << "Turnos del empleado valido" << endl;
-            if (empleado == totalAvailableEmployees) {
-                cout << "Encontrada solución valida, hora de escribir";
+        if (turno + 1 < cantidadTurnos * h) {
+            run(empleado, turno + 1);
+        }
+
+        if (turno == cantidadTurnos * h - 1) {
+            cout << " Revisando si cumple  con los requisitos minimos" << endl;
+
+            int resultado = checkFinalShifts(emp); // -1,1,2,3 = Valido,  Minimo de minutos trabajados, Minimo dias libres consecutivos, Minimo de turnos consecutivos
+            if (resultado == -1) {
+
+                cout << "Turnos del empleado valido" << endl;
+                ofstream outfile;
+                outfile.open("parcial_" + to_string(empleado) + ".txt", ios::app);
+                writeCamino(emp, outfile);
+                outfile << "Costo de la solución Empleado " << calcularCostoEmpleado(emp) << endl;
+                outfile.close();
+                if (empleado + 1 == totalAvailableEmployees) {
+                    cout << "Encontrada solución valida, hora de cachear" << endl;
+
+                } else {
+                    cout << "Continuando con otro empleado" << endl;
+                    run(empleado + 1, 0);
+                }
             } else {
-                cout << "Continuando con otro empleado" << endl;
-                //run(empleado + 1);
+                cout << "Esta asignación de turnos no es valida, deteniendo rama" << endl;
+                // Buscar los conflictos se reduce a encontrar el último 1 y probarlo con 0
+                //int lastOne = lastWorkingShift(emp);
+                //cout << "Returning to " << lastOne << endl;
+                // run(empleado, lastOne);
             }
-        } else {
-            cout << "Esta asignación de turnos no es valida, probando alternativas" << endl;
-            // Buscar los conflictos se reduce a encontrar el último 1 y probarlo con 0
-            int lastOne = lastWorkingShift(emp);
-            cout << "Returning to " << lastOne << endl;
-            run(empleado, lastOne);
         }
     }
+    void write_better();
 };
 
 int main(int argc, char const* argv[])
@@ -557,5 +660,6 @@ int main(int argc, char const* argv[])
     programa.buildStructures();
     cout << "Starting Program" << endl;
     programa.run();
+    programa.write_better();
     return 0;
 }
