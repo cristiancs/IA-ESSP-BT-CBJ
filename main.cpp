@@ -1,5 +1,5 @@
 #include <bits/stdc++.h>
-
+#include <thread>
 using namespace std;
 
 // Split tipo python para leer el input
@@ -70,43 +70,6 @@ map<string, pair<int, vector<string>>> readShift()
     return resultado;
 }
 
-// Retorna un map donde la llave es el empleado y los valores son pares de la forma  ( [ (Turno, Restricción)... ], [MaxT, MaxM, MinM, MaxCT, MinCT, MinCDL, MaxFD ] )
-map<string, pair<vector<pair<string, int>>, vector<int>>> readStaff()
-{
-
-    string linea;
-    map<string, pair<vector<pair<string, int>>, vector<int>>> resultado;
-
-    vector<string> data;
-    vector<string> rawTurnos;
-    vector<string> turno;
-
-    string siguientePaso = "SECTION_DAYS_OFF";
-
-    // Leémos hasta llegar a la siguiente acción
-    while (getline(cin, linea) && linea.compare(siguientePaso) != 0) {
-        data = customSplit(linea, ',');
-        rawTurnos = customSplit(data[1], '|');
-
-        vector<pair<string, int>> turnos;
-        vector<int> otros;
-
-        // Insertamos en un vector los turnos
-        for (int i = 0; i < rawTurnos.size(); ++i) {
-            turno = customSplit(rawTurnos[i], '=');
-            turnos.push_back(make_pair(turno[0], stoi(turno[1])));
-        }
-
-        // Insertamos en un vector los 6 valores restantes
-        for (int i = 2; i < 8; ++i) {
-            otros.push_back(stoi(data[i]));
-        }
-        resultado[data[0]] = make_pair(turnos, otros);
-    }
-
-    return resultado;
-}
-
 // Retorna un mapa donde las llaves son los empleados y los valores son vectores de números
 map<string, vector<int>> readDayOff()
 {
@@ -146,10 +109,7 @@ map<string, map<int, map<string, int>>> readShiftOnRequests()
     map<int, map<string, int>> toSave;
     while (getline(cin, linea) && linea.compare(siguientePaso) != 0) {
         data = customSplit(linea, ',');
-        //A , 0 , E , 3
-        cout << data[0] << "|" << lastEmployee << endl;
         if (lastEmployee.compare("") != 0 && lastEmployee.compare(data[0]) != 0) {
-            cout << "Changing employee" << endl;
             resultado[lastEmployee]
                 = toSave;
             toSave.empty();
@@ -283,11 +243,53 @@ class Main {
     int totalAvailableEmployees;
     int lastEmployee;
     int currentBestSolutionCost;
+    int searchWindow;
     int debug;
+    string rawEmployees;
     vector<int> currentBestSolutionPath;
     map<string, vector<Empleado>> snapshots;
+    time_t startTime;
 
 public:
+    // Retorna un map donde la llave es el empleado y los valores son pares de la forma  ( [ (Turno, Restricción)... ], [MaxT, MaxM, MinM, MaxCT, MinCT, MinCDL, MaxFD ] )
+    map<string, pair<vector<pair<string, int>>, vector<int>>> readStaff()
+    {
+
+        string linea;
+        map<string, pair<vector<pair<string, int>>, vector<int>>> resultado;
+
+        vector<string> data;
+        vector<string> rawTurnos;
+        vector<string> turno;
+
+        string siguientePaso = "SECTION_DAYS_OFF";
+
+        // Leémos hasta llegar a la siguiente acción
+        while (getline(cin, linea) && linea.compare(siguientePaso) != 0) {
+            rawEmployees += linea + "\n";
+            data
+                = customSplit(linea, ',');
+            rawTurnos = customSplit(data[1], '|');
+
+            vector<pair<string, int>> turnos;
+            vector<int> otros;
+
+            // Insertamos en un vector los turnos
+            for (int i = 0; i < rawTurnos.size(); ++i) {
+                turno = customSplit(rawTurnos[i], '=');
+                turnos.push_back(make_pair(turno[0], stoi(turno[1])));
+            }
+
+            // Insertamos en un vector los 6 valores restantes
+            for (int i = 2; i < 8; ++i) {
+                otros.push_back(stoi(data[i]));
+            }
+            resultado[data[0]] = make_pair(turnos, otros);
+        }
+
+        return resultado;
+    }
+
     string
     getTipoTurno(int i)
     {
@@ -353,10 +355,26 @@ public:
             emp.lastWorkedShift = -10;
             empleados.push_back(emp);
         }
+        startTime = time(NULL);
     }
     bool isWeekend(int dia)
     {
         return dia != 0 && (dia % 7 == 5 || dia % 7 == 6);
+    }
+    bool notSurpassedMaxWorkTime(Empleado emp, int turno)
+    {
+        string tipoTurno = getTipoTurno(turno);
+        int dia = getDiaTurno(turno);
+        bool sirve = true;
+        int duracionTurno = shifts[tipoTurno].first;
+        // Minutos máximo de trabajo
+        if (emp.currentM + duracionTurno > emp.MaxM) {
+            cout << "  "
+                 << "[✖] Minutos máximo de trabajo (" << emp.currentM << "+" << duracionTurno << "/"
+                 << emp.MaxM << ")" << endl;
+            sirve = false;
+        }
+        return sirve;
     }
     bool checkIfWorks(Empleado emp, int turno)
     {
@@ -365,13 +383,8 @@ public:
         int duracionTurno = shifts[tipoTurno].first;
         bool sirve = true;
 
-        // Minutos máximo de trabajo
-        if (emp.currentM + duracionTurno > emp.MaxM) {
-            cout << "  "
-                 << "[✖] Minutos máximo de trabajo (" << emp.currentM << "+" << duracionTurno << "/"
-                 << emp.MaxM << ")" << endl;
-            sirve = false;
-        }
+        notSurpassedMaxWorkTime(emp, turno);
+
         // Cantidad de turnos de tipo T que puede hacer
         if (emp.currentT[tipoTurno] + 1 > emp.MaxT[tipoTurno]) {
             cout << "  "
@@ -460,17 +473,17 @@ public:
         for (int val : emp.assignedShifts) {
             if (val == 1) {
                 currentCT += 1;
-                if (currentCDL > maxCDL) {
-                    maxCDL = currentCDL;
-                    currentCDL = 0;
-                }
-            } else {
                 if (currentCT > maxCT) {
                     maxCT = currentCT;
                 }
+            } else {
                 currentCT = 0;
                 if (find(emp.daysOff.begin(), emp.daysOff.end(), i) == emp.daysOff.end()) {
                     currentCDL += 1;
+                    if (currentCDL > maxCDL) {
+                        maxCDL = currentCDL;
+                        currentCDL = 0;
+                    }
                 }
             }
             i += 1;
@@ -512,7 +525,7 @@ public:
     {
         int i = 0;
         int cantidadTurnos = array.size();
-        int spaces = cantidadTurnos;
+        int spaces = cantidadTurnos >= 3 ? cantidadTurnos : 3;
 
         int cantidadUnos = 0;
         for (int val : array) {
@@ -574,52 +587,69 @@ public:
     {
         vector<int> sumaEmpleados(cantidadTurnos * h);
         int shift = 0;
+        // Recorre todos los empleados
         for (int val : array) {
+            // Ya se recorrieron todos los turnos que existe (ergo, cambio de empleado)
             if (shift == cantidadTurnos * h) {
                 shift = 0;
             }
             sumaEmpleados[shift] += val;
             shift += 1;
         }
-        cout << "[DEBUG]";
-        for (int empleadosEnTurno : sumaEmpleados) {
-            cout << empleadosEnTurno << " ";
-        }
-        cout << endl;
         int sumaCostos = 0;
         shift = 0;
         for (int empleadosEnTurno : sumaEmpleados) {
             int dia = getDiaTurno(shift);
             string tipoTurno = getTipoTurno(shift);
             vector<int> dataDia = cover[dia][tipoTurno];
+            cout << dia << " | " << tipoTurno << " | " << dataDia.size() << endl;
             // {dia: { turno: [ Empleados, costoPorEmpleadoFaltante, costoPorEmpleadoSobrante]} } , ...
             int requiredEmployees = dataDia[0];
             int costoPorEmpleadoFaltante = dataDia[1];
             int costoPorEmpleadoSobrante = dataDia[2];
+
             // cout << "[DEBUG]" << requiredEmployees << "|" << empleadosEnTurno << endl;
             if (requiredEmployees > empleadosEnTurno) {
                 sumaCostos += (requiredEmployees - empleadosEnTurno) * costoPorEmpleadoFaltante;
             } else {
                 sumaCostos += (empleadosEnTurno - requiredEmployees) * costoPorEmpleadoSobrante;
             }
+
             shift += 1;
         }
         return sumaCostos;
     }
+    void setSearchWindow(int time)
+    {
+        searchWindow = time;
+    }
+    bool hasTimeWindowExpired()
+    {
+        time_t currentTime = time(NULL);
+        bool hasExpired = currentTime - startTime > searchWindow && currentBestSolutionCost != -1;
+        return hasExpired;
+    }
     void run(int empleado = 0, int turno = 0)
     {
 
+        if (hasTimeWindowExpired()) {
+            cout << "Time Window expired, stoping search" << endl;
+            return;
+        }
         Empleado emp = empleados[empleado];
         if (empleado != lastEmployee) {
             cout << "Testing employee: " << emp.id << endl;
             lastEmployee = empleado;
         }
+        emp.assignedShifts.resize(turno);
 
         string tipoTurno = getTipoTurno(turno);
         int dia = getDiaTurno(turno);
         int duracionTurno = shifts[tipoTurno].first;
         cout << " Testing turno: " << turno << endl;
         bool isValidTurn = checkIfWorks(emp, turno);
+        Empleado cachedEmployee = emp;
+
         if (isValidTurn) { // Es valido y no es el turno a cambiar
             emp.currentM += duracionTurno;
             emp.currentT[tipoTurno] += 1;
@@ -632,33 +662,40 @@ public:
             emp.assignedShifts.push_back(1);
             empleados[empleado] = emp;
             if (turno + 1 < cantidadTurnos * h) {
+                cout << " Running positive " << turno << endl;
                 run(empleado, turno + 1);
             }
         }
-        emp.currentCT = 0;
-        if (isValidTurn) {
-
-            emp.assignedShifts.back() = 0;
-        } else {
-            emp.assignedShifts.push_back(0);
+        if (hasTimeWindowExpired()) {
+            cout << "Time Window expired, stoping search" << endl;
+            return;
         }
-        empleados[empleado] = emp;
-        if (turno + 1 < cantidadTurnos * h) {
+
+        // Si ya trabajo el máximo de horas o es el último turno no hay nada que hacer.
+        if (turno + 1 < cantidadTurnos * h && notSurpassedMaxWorkTime(emp, turno)) {
+            emp = cachedEmployee;
+            emp.assignedShifts.push_back(0);
+            emp.currentCT = 0;
+            empleados[empleado] = emp;
+            cout << " Running negative " << turno << endl;
             run(empleado, turno + 1);
         }
 
-        if (turno == cantidadTurnos * h - 1) {
+        if (turno + 1 == cantidadTurnos * h) {
             cout << " Revisando si cumple  con los requisitos minimos" << endl;
 
             int resultado = checkFinalShifts(emp); // -1,1,2,3 = Valido,  Minimo de minutos trabajados, Minimo dias libres consecutivos, Minimo de turnos consecutivos
             if (resultado == -1) {
 
                 cout << "Turnos del empleado valido" << endl;
-                ofstream outfile;
-                outfile.open("parcial_" + to_string(empleado) + ".txt", ios::app);
-                writeCamino(emp, outfile);
-                outfile << "Costo de la solución Empleado " << calcularCostoEmpleado(emp) << endl;
-                outfile.close();
+                if (empleado < 100) {
+                    ofstream outfile;
+                    outfile.open("parcial_" + to_string(empleado) + ".txt", ios::app);
+                    writeCamino(emp, outfile);
+                    outfile << "Costo de la solución Empleado " << calcularCostoEmpleado(emp) << endl;
+                    outfile.close();
+                }
+
                 if (empleado + 1 == totalAvailableEmployees) {
                     cout << "Encontrada solución valida, hora de cachear" << endl;
                     vector<int> tempPathSolution;
@@ -671,13 +708,18 @@ public:
                         }
                     }
                     int costoTotal = costoTotalEmpleados + calcularCostoEmpresa(tempPathSolution);
+                    cout << "HE" << endl;
                     if (costoTotal < currentBestSolutionCost || currentBestSolutionCost == -1) {
                         currentBestSolutionCost = costoTotal;
-                        debug = tempPathSolution.size();
                         currentBestSolutionPath = tempPathSolution;
+                        ofstream outfile;
+                        outfile.open("all_sollutions.txt", ios::app);
+                        outfile << "Costo de la solución Actual " << currentBestSolutionCost << endl;
+                        outfile.close();
                     }
 
                 } else {
+
                     cout << "Continuando con otro empleado" << endl;
                     run(empleado + 1, 0);
                 }
@@ -694,7 +736,120 @@ public:
     {
         ofstream outfile;
         outfile.open("final.txt");
-        outfile << "Costo de la solución: " << currentBestSolutionCost << endl;
+        outfile << "#Valor Función Objetivo:" << endl
+                << currentBestSolutionCost << endl;
+        outfile << "#Calendario horizonte de " << h << " días:" << endl;
+        string head = "Empleados / Dias ";
+        outfile << head << "|";
+        for (int i = 0; i < h; i++) {
+            int spaces = ((2 + to_string(cantidadTurnos).length() * 2) - to_string(i).length()) / 2;
+            outfile << string(spaces, ' ') << i << string(spaces, ' ') << "|";
+        }
+        outfile << endl;
+        int solutionPosition = 0;
+        for (auto& emp : empleados) {
+            cout << head.length() - emp.id.length() << endl;
+            outfile << emp.id << string(head.length() - emp.id.length(), ' ') << "|";
+            int shift = 0;
+            int i = 0;
+            string toWrite;
+            for (int i = 0; i <= cantidadTurnos * h; i++) {
+
+                if (shift == cantidadTurnos) {
+                    shift = 0;
+
+                    outfile << toWrite << string(2, ' ') << "|";
+                    toWrite = "";
+                }
+                if (currentBestSolutionPath[solutionPosition] == 1) {
+                    toWrite += getTipoTurno(shift) + ",";
+                }
+
+                shift += 1;
+                solutionPosition += 1;
+            }
+            outfile << endl;
+        }
+        outfile << "#Penalizaciones por empleados:" << endl;
+        for (auto& emp : empleados) {
+            outfile << emp.id << "    " << calcularCostoEmpleado(emp) << endl;
+        }
+        outfile << "#Tabla de cobertura de turnos y penalización por día:" << endl;
+        head = "Turnos/Días ";
+        outfile << head << "|";
+        for (int i = 0; i < h; i++) {
+            int spaces = ((6 - to_string(i).length()) / 2);
+            outfile << string(spaces, ' ') << i << string(spaces, ' ') << "|";
+        }
+        outfile << endl;
+        vector<int> sumaEmpleados(cantidadTurnos * h);
+        int shift = 0;
+        for (int val : currentBestSolutionPath) {
+            if (shift == cantidadTurnos * h) {
+                shift = 0;
+            }
+            sumaEmpleados[shift] += val;
+            shift += 1;
+        }
+        shift = 0;
+        map<string, vector<vector<int>>> empleadosPorTurno;
+        for (int empleadosEnTurno : sumaEmpleados) {
+            int dia = getDiaTurno(shift);
+            string tipoTurno = getTipoTurno(shift);
+            vector<int> dataDia = cover[dia][tipoTurno];
+            int requiredEmployees = dataDia[0];
+            int costoPorEmpleadoFaltante = dataDia[1];
+            int costoPorEmpleadoSobrante = dataDia[2];
+            int costoTurno = 0;
+            if (requiredEmployees > empleadosEnTurno) {
+                costoTurno = (requiredEmployees - empleadosEnTurno) * costoPorEmpleadoFaltante;
+            } else {
+                costoTurno = (empleadosEnTurno - requiredEmployees) * costoPorEmpleadoSobrante;
+            }
+            if (empleadosPorTurno.find(tipoTurno) == empleadosPorTurno.end()) {
+                vector<int> toAssign;
+                toAssign.push_back(requiredEmployees);
+                toAssign.push_back(empleadosEnTurno);
+                toAssign.push_back(costoTurno);
+                vector<vector<int>> temp;
+                temp.push_back(toAssign);
+                empleadosPorTurno[tipoTurno] = temp;
+            } else {
+                vector<int> toAssign;
+
+                toAssign.push_back(requiredEmployees);
+                toAssign.push_back(empleadosEnTurno);
+                toAssign.push_back(costoTurno);
+                empleadosPorTurno[tipoTurno].push_back(toAssign);
+            }
+            shift += 1;
+        }
+        for (string turno : tiposTurno) {
+            outfile << turno << string(head.length() - turno.length() - 1, ' ') << "|";
+            for (auto& asignados : empleadosPorTurno[turno]) {
+                string toWrite = to_string(asignados[1]) + "/" + to_string(asignados[0]) + " | ";
+                outfile << toWrite;
+            }
+            outfile << endl;
+        }
+        outfile << "Costo Total | ";
+        vector<int> costosDia;
+        for (int i = 0; i < h; i++) {
+            costosDia.push_back(0);
+        }
+        for (string turno : tiposTurno) {
+            int dia = 0;
+            for (auto& asignados : empleadosPorTurno[turno]) {
+                costosDia[dia] += asignados[2];
+                dia += 1;
+            }
+        }
+        for (int costo : costosDia) {
+            outfile << costo << " | ";
+        }
+        outfile << endl;
+        outfile << "#Resumen información por empleado:" << endl;
+        outfile << rawEmployees << endl;
         writeCaminoVector(currentBestSolutionPath, outfile);
         outfile.close();
     };
@@ -709,6 +864,7 @@ int main(int argc, char const* argv[])
     cout << "Building Structures" << endl;
     programa.buildStructures();
     cout << "Starting Program" << endl;
+    programa.setSearchWindow(100);
     programa.run();
     programa.write_better();
     return 0;
