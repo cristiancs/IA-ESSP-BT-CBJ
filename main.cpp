@@ -602,7 +602,7 @@ public:
             int dia = getDiaTurno(shift);
             string tipoTurno = getTipoTurno(shift);
             vector<int> dataDia = cover[dia][tipoTurno];
-            cout << dia << " | " << tipoTurno << " | " << dataDia.size() << endl;
+            // cout << dia << " | " << tipoTurno << " | " << dataDia.size() << endl;
             // {dia: { turno: [ Empleados, costoPorEmpleadoFaltante, costoPorEmpleadoSobrante]} } , ...
             int requiredEmployees = dataDia[0];
             int costoPorEmpleadoFaltante = dataDia[1];
@@ -680,7 +680,7 @@ public:
             emp.currentCT = 0;
             empleados[empleado] = emp;
         }
-        if (turno + 1 < cantidadTurnos * h && notSurpassedMaxWorkTime(emp, turno)) {
+        if (turno + 1 < cantidadTurnos * h) {
             emp = cachedEmployee;
             emp.assignedShifts.push_back(0);
             emp.currentCT = 0;
@@ -688,8 +688,6 @@ public:
             cout << " Running negative " << turno << endl;
             run(empleado, turno + 1);
             cout << " Back to" << turno << " of employee " << emp.id << " (negative)" << endl;
-        } else {
-            cout << turno << ": can't do negative";
         }
 
         if (turno + 1 == cantidadTurnos * h) {
@@ -709,18 +707,19 @@ public:
                 }
 
                 if (empleado + 1 == totalAvailableEmployees) {
-                    cout << "Encontrada solución valida, hora de cachear" << endl;
+                    cout << "Encontrada solución valida" << endl;
                     vector<int> tempPathSolution;
                     int costoTotalEmpleados = 0;
                     for (int i = 0; i < empleados.size(); i++) {
                         costoTotalEmpleados += calcularCostoEmpleado(empleados[i]);
-                        // cout << turno << " " << i << " " << empleados[i].assignedShifts.size() << endl;
+                        // cout << "[DEB]" << turno << " " << i << " " << empleados[i].assignedShifts.size() << endl;
                         for (int value : empleados[i].assignedShifts) {
                             tempPathSolution.push_back(value);
                         }
                     }
                     int costoTotal = costoTotalEmpleados + calcularCostoEmpresa(tempPathSolution);
                     if (costoTotal < currentBestSolutionCost || currentBestSolutionCost == -1) {
+                        cout << "Solución mejor que la existente, guardando" << endl;
                         currentBestSolutionCost = costoTotal;
                         currentBestSolutionPath = tempPathSolution;
                         ofstream outfile;
@@ -762,7 +761,7 @@ public:
             int shift = 0;
             int i = 0;
             string toWrite;
-            for (int i = 0; i <= cantidadTurnos * h; i++) {
+            for (int i = 0; i < cantidadTurnos * h; i++) {
 
                 if (shift == cantidadTurnos) {
                     shift = 0;
@@ -770,6 +769,7 @@ public:
                     outfile << toWrite << " |";
                     toWrite = "";
                 }
+                cout << "[DEB]" << emp.id << " " << solutionPosition << " | " << currentBestSolutionPath[solutionPosition] << endl;
                 if (currentBestSolutionPath[solutionPosition] == 1) {
                     toWrite += getTipoTurno(shift) + ",";
                 }
@@ -777,7 +777,7 @@ public:
                 shift += 1;
                 solutionPosition += 1;
             }
-            outfile << endl;
+            outfile << toWrite << " |" << endl;
         }
         outfile << "#Penalizaciones por empleados:" << endl;
         for (auto& emp : empleados) {
@@ -873,7 +873,7 @@ int main(int argc, char const* argv[])
     cout << "Building Structures" << endl;
     programa.buildStructures();
     cout << "Starting Program" << endl;
-    programa.setSearchWindow(100);
+    programa.setSearchWindow(600);
     programa.run();
     programa.write_better();
     return 0;
