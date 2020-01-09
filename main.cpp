@@ -458,7 +458,7 @@ public:
         emp.assignedShifts.resize(turno);
         empleados[empleadoIndex] = emp;
     }
-    int checkFinalShifts(Empleado emp)
+    int checkFinalShifts(Empleado emp, int turno)
     {
         if (emp.currentM < emp.minM) {
             cout << "  "
@@ -646,7 +646,7 @@ public:
         string tipoTurno = getTipoTurno(turno);
         int dia = getDiaTurno(turno);
         int duracionTurno = shifts[tipoTurno].first;
-        cout << " Testing turno: " << turno << endl;
+        cout << " Testing turno: " << turno << " [" << emp.id << "]" << endl;
         bool isValidTurn = checkIfWorks(emp, turno);
         Empleado cachedEmployee = emp;
 
@@ -664,6 +664,7 @@ public:
             if (turno + 1 < cantidadTurnos * h) {
                 cout << " Running positive " << turno << endl;
                 run(empleado, turno + 1);
+                cout << " Back to" << turno << " of employee " << emp.id << " (positive)" << endl;
             }
         }
         if (hasTimeWindowExpired()) {
@@ -672,6 +673,13 @@ public:
         }
 
         // Si ya trabajo el máximo de horas o es el último turno no hay nada que hacer.
+        cout << "Can do negative: ";
+        if (!isValidTurn) {
+            emp = cachedEmployee;
+            emp.assignedShifts.push_back(0);
+            emp.currentCT = 0;
+            empleados[empleado] = emp;
+        }
         if (turno + 1 < cantidadTurnos * h && notSurpassedMaxWorkTime(emp, turno)) {
             emp = cachedEmployee;
             emp.assignedShifts.push_back(0);
@@ -679,12 +687,16 @@ public:
             empleados[empleado] = emp;
             cout << " Running negative " << turno << endl;
             run(empleado, turno + 1);
+            cout << " Back to" << turno << " of employee " << emp.id << " (negative)" << endl;
+        } else {
+            cout << turno << ": can't do negative";
         }
 
         if (turno + 1 == cantidadTurnos * h) {
             cout << " Revisando si cumple  con los requisitos minimos" << endl;
-
-            int resultado = checkFinalShifts(emp); // -1,1,2,3 = Valido,  Minimo de minutos trabajados, Minimo dias libres consecutivos, Minimo de turnos consecutivos
+            // emp.assignedShifts.resize(turno);
+            // empleados[empleado] = emp;
+            int resultado = checkFinalShifts(emp, turno); // -1,1,2,3 = Valido,  Minimo de minutos trabajados, Minimo dias libres consecutivos, Minimo de turnos consecutivos
             if (resultado == -1) {
 
                 cout << "Turnos del empleado valido" << endl;
@@ -700,15 +712,14 @@ public:
                     cout << "Encontrada solución valida, hora de cachear" << endl;
                     vector<int> tempPathSolution;
                     int costoTotalEmpleados = 0;
-
                     for (int i = 0; i < empleados.size(); i++) {
                         costoTotalEmpleados += calcularCostoEmpleado(empleados[i]);
+                        // cout << turno << " " << i << " " << empleados[i].assignedShifts.size() << endl;
                         for (int value : empleados[i].assignedShifts) {
                             tempPathSolution.push_back(value);
                         }
                     }
                     int costoTotal = costoTotalEmpleados + calcularCostoEmpresa(tempPathSolution);
-                    cout << "HE" << endl;
                     if (costoTotal < currentBestSolutionCost || currentBestSolutionCost == -1) {
                         currentBestSolutionCost = costoTotal;
                         currentBestSolutionPath = tempPathSolution;
@@ -719,7 +730,6 @@ public:
                     }
 
                 } else {
-
                     cout << "Continuando con otro empleado" << endl;
                     run(empleado + 1, 0);
                 }
@@ -748,7 +758,6 @@ public:
         outfile << endl;
         int solutionPosition = 0;
         for (auto& emp : empleados) {
-            cout << head.length() - emp.id.length() << endl;
             outfile << emp.id << string(head.length() - emp.id.length(), ' ') << "|";
             int shift = 0;
             int i = 0;
@@ -758,7 +767,7 @@ public:
                 if (shift == cantidadTurnos) {
                     shift = 0;
 
-                    outfile << toWrite << string(2, ' ') << "|";
+                    outfile << toWrite << " |";
                     toWrite = "";
                 }
                 if (currentBestSolutionPath[solutionPosition] == 1) {
