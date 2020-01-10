@@ -476,15 +476,18 @@ public:
                 if (currentCT > maxCT) {
                     maxCT = currentCT;
                 }
+                currentCDL = 0;
             } else {
                 currentCT = 0;
-                if (find(emp.daysOff.begin(), emp.daysOff.end(), i) == emp.daysOff.end()) {
-                    currentCDL += 1;
-                    if (currentCDL > maxCDL) {
-                        maxCDL = currentCDL;
-                        currentCDL = 0;
-                    }
+                currentCDL += 1;
+                if (currentCDL > maxCDL) {
+                    maxCDL = currentCDL;
                 }
+                // No es dia libre obligatorio
+                //if (find(emp.daysOff.begin(), emp.daysOff.end(), i) == emp.daysOff.end()) {
+                //
+                //
+                //}
             }
             i += 1;
         }
@@ -664,7 +667,8 @@ public:
             if (turno + 1 < cantidadTurnos * h) {
                 cout << " Running positive " << turno << endl;
                 run(empleado, turno + 1);
-                cout << " Back to" << turno << " of employee " << emp.id << " (positive)" << endl;
+                cout << "[DEB]"
+                     << " Back to " << turno << " of employee " << emp.id << " (positive)" << endl;
             }
         }
         if (hasTimeWindowExpired()) {
@@ -672,8 +676,6 @@ public:
             return;
         }
 
-        // Si ya trabajo el máximo de horas o es el último turno no hay nada que hacer.
-        cout << "Can do negative: ";
         if (!isValidTurn) {
             emp = cachedEmployee;
             emp.assignedShifts.push_back(0);
@@ -685,13 +687,17 @@ public:
             emp.assignedShifts.push_back(0);
             emp.currentCT = 0;
             empleados[empleado] = emp;
-            cout << " Running negative " << turno << endl;
+            cout << "[DEB]"
+                 << " Running negative " << turno << endl;
             run(empleado, turno + 1);
-            cout << " Back to" << turno << " of employee " << emp.id << " (negative)" << endl;
+            cout << "[DEB]"
+                 << " Back to " << turno << " of employee " << emp.id << " (negative)" << endl;
         }
 
         if (turno + 1 == cantidadTurnos * h) {
-            cout << " Revisando si cumple  con los requisitos minimos" << endl;
+            cout << "[DEB]"
+                 << " Revisando si cumple  con los requisitos minimos"
+                 << turno << " of employee " << emp.id << endl;
             // emp.assignedShifts.resize(turno);
             // empleados[empleado] = emp;
             int resultado = checkFinalShifts(emp, turno); // -1,1,2,3 = Valido,  Minimo de minutos trabajados, Minimo dias libres consecutivos, Minimo de turnos consecutivos
@@ -730,7 +736,8 @@ public:
 
                 } else {
                     cout << "Continuando con otro empleado" << endl;
-                    run(empleado + 1, 0);
+                    resetToTurno(empleados[empleado + 1], empleado + 1, 0);
+                    return run(empleado + 1, 0);
                 }
             } else {
                 cout << "Esta asignación de turnos no es valida, deteniendo rama" << endl;
@@ -769,7 +776,7 @@ public:
                     outfile << toWrite << " |";
                     toWrite = "";
                 }
-                cout << "[DEB]" << emp.id << " " << solutionPosition << " | " << currentBestSolutionPath[solutionPosition] << endl;
+                // cout << "[DEB]" << emp.id << " " << solutionPosition << " | " << currentBestSolutionPath[solutionPosition] << endl;
                 if (currentBestSolutionPath[solutionPosition] == 1) {
                     toWrite += getTipoTurno(shift) + ",";
                 }
@@ -873,7 +880,7 @@ int main(int argc, char const* argv[])
     cout << "Building Structures" << endl;
     programa.buildStructures();
     cout << "Starting Program" << endl;
-    programa.setSearchWindow(600);
+    programa.setSearchWindow(100);
     programa.run();
     programa.write_better();
     return 0;
