@@ -759,6 +759,11 @@ public:
     {
         ofstream outfile;
         outfile.open("final.txt");
+        if (currentBestSolutionCost < 0) {
+            outfile << "NO FEASIBLE SOLUTON FOUND" << endl;
+            outfile.close();
+            return;
+        }
         outfile << "#Valor Función Objetivo:" << endl
                 << currentBestSolutionCost << endl;
         outfile << "#Calendario horizonte de " << h << " días:" << endl;
