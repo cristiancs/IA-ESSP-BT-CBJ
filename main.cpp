@@ -414,6 +414,12 @@ public:
                  << "[✖] Dias libres obligatorios" << endl;
             sirve = false;
         }
+        // Solo un turno por día
+        if (getDiaTurno(emp.lastWorkedShift) == dia) {
+            cout << "  "
+                 << "[✖] Solo un turno por día" << endl;
+            sirve = false;
+        }
 
         // Continuación de turnos
         if (emp.lastWorkedShift != -10) {
@@ -704,7 +710,7 @@ public:
             if (resultado == -1) {
 
                 cout << "Turnos del empleado valido" << endl;
-                if (empleado < 100) {
+                if (empleado < 3) {
                     ofstream outfile;
                     outfile.open("parcial_" + to_string(empleado) + ".txt", ios::app);
                     writeCamino(emp, outfile);
@@ -741,6 +747,7 @@ public:
                 }
             } else {
                 cout << "Esta asignación de turnos no es valida, deteniendo rama" << endl;
+                return;
                 // Buscar los conflictos se reduce a encontrar el último 1 y probarlo con 0
                 //int lastOne = lastWorkingShift(emp);
                 //cout << "Returning to " << lastOne << endl;
@@ -778,7 +785,7 @@ public:
                 }
                 // cout << "[DEB]" << emp.id << " " << solutionPosition << " | " << currentBestSolutionPath[solutionPosition] << endl;
                 if (currentBestSolutionPath[solutionPosition] == 1) {
-                    toWrite += getTipoTurno(shift) + ",";
+                    toWrite += " " + getTipoTurno(shift);
                 }
 
                 shift += 1;
@@ -880,8 +887,11 @@ int main(int argc, char const* argv[])
     cout << "Building Structures" << endl;
     programa.buildStructures();
     cout << "Starting Program" << endl;
-    programa.setSearchWindow(100);
+    cout.setstate(std::ios_base::failbit);
+    programa.setSearchWindow(600000);
     programa.run();
+    cout.clear();
+    cout << "Writting Better solution" << endl;
     programa.write_better();
     return 0;
 }
