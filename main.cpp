@@ -87,7 +87,7 @@ map<string, vector<int>> readDayOff()
         if (data.size() > 1) {
             rawDias = customSplit(data[1], '|');
 
-            for (int i = 0; i < rawDias.size(); ++i) {
+            for (long unsigned int i = 0; i < rawDias.size(); ++i) {
                 dias.push_back(stoi(rawDias[i]));
             }
         }
@@ -166,7 +166,6 @@ map<int, map<string, vector<int>>> readCover()
     vector<string> data;
 
     int currentDia = 0;
-    int numero;
     map<string, vector<int>> dataTurnos;
     while (getline(cin, linea)) {
         data = customSplit(linea, ',');
@@ -275,7 +274,7 @@ public:
             vector<int> otros;
 
             // Insertamos en un vector los turnos
-            for (int i = 0; i < rawTurnos.size(); ++i) {
+            for (long unsigned int i = 0; i < rawTurnos.size(); ++i) {
                 turno = customSplit(rawTurnos[i], '=');
                 turnos.push_back(make_pair(turno[0], stoi(turno[1])));
             }
@@ -364,7 +363,6 @@ public:
     bool notSurpassedMaxWorkTime(Empleado emp, int turno)
     {
         string tipoTurno = getTipoTurno(turno);
-        int dia = getDiaTurno(turno);
         bool sirve = true;
         int duracionTurno = shifts[tipoTurno].first;
         // Minutos máximo de trabajo
@@ -380,7 +378,6 @@ public:
     {
         string tipoTurno = getTipoTurno(turno);
         int dia = getDiaTurno(turno);
-        int duracionTurno = shifts[tipoTurno].first;
         bool sirve = true;
 
         notSurpassedMaxWorkTime(emp, turno);
@@ -722,7 +719,7 @@ public:
                     cout << "Encontrada solución valida" << endl;
                     vector<int> tempPathSolution;
                     int costoTotalEmpleados = 0;
-                    for (int i = 0; i < empleados.size(); i++) {
+                    for (long unsigned int i = 0; i < empleados.size(); i++) {
                         costoTotalEmpleados += calcularCostoEmpleado(empleados[i]);
                         // cout << "[DEB]" << turno << " " << i << " " << empleados[i].assignedShifts.size() << endl;
                         for (int value : empleados[i].assignedShifts) {
@@ -760,7 +757,7 @@ public:
         ofstream outfile;
         outfile.open("final.txt");
         if (currentBestSolutionCost < 0) {
-            outfile << "NO FEASIBLE SOLUTON FOUND" << endl;
+            outfile << "NO FEASIBLE SOLUTION FOUND" << endl;
             outfile.close();
             return;
         }
@@ -778,7 +775,6 @@ public:
         for (auto& emp : empleados) {
             outfile << emp.id << string(head.length() - emp.id.length(), ' ') << "|";
             int shift = 0;
-            int i = 0;
             string toWrite;
             for (int i = 0; i < cantidadTurnos * h; i++) {
 
@@ -893,7 +889,7 @@ int main(int argc, char const* argv[])
     programa.buildStructures();
     cout << "Starting Program" << endl;
     cout.setstate(std::ios_base::failbit);
-    programa.setSearchWindow(600000);
+    programa.setSearchWindow(86400);
     programa.run();
     cout.clear();
     cout << "Writting Better solution" << endl;
